@@ -26,10 +26,11 @@
 <audio id="audioPlayer" controls></audio>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    let audioChunks = [];
-    let mediaRecorder;
+let audioChunks = [];
+let mediaRecorder;
+let isRecording = false;
 
+function startRecording() {
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
             mediaRecorder = new MediaRecorder(stream);
@@ -43,24 +44,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 const audioUrl = URL.createObjectURL(audioBlob);
                 document.getElementById('audioPlayer').src = audioUrl;
             };
+
+            mediaRecorder.start();
+            isRecording = true;
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('stopButton').disabled = false;
         })
         .catch(err => {
             console.error('録音の許可が得られませんでした: ', err);
         });
+}
 
-    document.getElementById('startButton').addEventListener('click', () => {
-        mediaRecorder.start();
-        document.getElementById('startButton').disabled = true;
-        document.getElementById('stopButton').disabled = false;
-    });
-
-    document.getElementById('stopButton').addEventListener('click', () => {
+function stopRecording() {
+    if (isRecording) {
         mediaRecorder.stop();
+        isRecording = false;
         document.getElementById('startButton').disabled = false;
         document.getElementById('stopButton').disabled = true;
         audioChunks = [];
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('startButton').addEventListener('click', startRecording);
+    document.getElementById('stopButton').addEventListener('click', stopRecording);
+
+    // ページが非アクティブになった時にも録音を続けるためのイベントリスナー
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && isRecording) {
+            // ページが非アクティブになった時に録音を続ける
+            document.title = "録音中...";
+        } else {
+            // ページが再度アクティブになった時にタイトルを元に戻す
+            document.title = "マイクから音を再生する";
+        }
     });
 });
+
+// ページがアンロードされた時に録音を停止する
+window.addEventListener('beforeunload', stopRecording);
 </script>
 </body>
 </html>
