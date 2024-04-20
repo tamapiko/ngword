@@ -30,53 +30,57 @@
 let audioContext;
 let microphoneStream;
 let scriptNode;
+let audioBufferSourceNode;
 
-function startLiveAudio() {
-    // Web Audio API の AudioContext を生成
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+async function startLiveAudio() {
+    try {
+        // Web Audio API の AudioContext を生成
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    // マイクから音声を取得するための getUserMedia を使ってストリームを取得
-    navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-            microphoneStream = stream;
+        // マイクから音声を取得するための getUserMedia を使ってストリームを取得
+        microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // ストリームから音声データを取得するためのソースノードを作成
-            const sourceNode = audioContext.createMediaStreamSource(stream);
+        // ストリームから音声データを取得するためのソースノードを作成
+        const sourceNode = audioContext.createMediaStreamSource(microphoneStream);
 
-            // 出力先の destination ノードを作成
-            const destinationNode = audioContext.destination;
+        // 出力先の destination ノードを作成
+        const destinationNode = audioContext.destination;
 
-            // ScriptProcessorNode を作成して音声処理を行う
-            scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
+        // ScriptProcessorNode を作成して音声処理を行う
+        scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
 
-            // ScriptProcessorNode で音声データを処理する処理を設定
-            scriptNode.onaudioprocess = event => {
-                const inputBuffer = event.inputBuffer;
-                const inputData = inputBuffer.getChannelData(0); // 左チャンネルのデータのみ使用
+        // ScriptProcessorNode で音声データを処理する処理を設定
+        scriptNode.onaudioprocess = event => {
+            const inputBuffer = event.inputBuffer;
+            const inputData = inputBuffer.getChannelData(0); // 左チャンネルのデータのみ使用
 
-                // データを再生するために AudioBuffer を作成
-                const outputBuffer = audioContext.createBuffer(1, inputBuffer.length, audioContext.sampleRate);
-                const outputData = outputBuffer.getChannelData(0);
-                outputData.set(inputData);
+            // データを再生するために AudioBuffer を作成
+            const outputBuffer = audioContext.createBuffer(1, inputBuffer.length, audioContext.sampleRate);
+            const outputData = outputBuffer.getChannelData(0);
+            outputData.set(inputData);
 
-                // 出力先にデータを送る
-                const audioBufferSourceNode = audioContext.createBufferSource();
-                audioBufferSourceNode.buffer = outputBuffer;
-                audioBufferSourceNode.connect(destinationNode);
-                audioBufferSourceNode.start();
-            };
+            // 以前の再生があれば停止
+            if (audioBufferSourceNode) {
+                audioBufferSourceNode.stop();
+            }
 
-            // ソースノードを ScriptProcessorNode に接続
-            sourceNode.connect(scriptNode);
-            scriptNode.connect(destinationNode);
+            // 出力先にデータを送る
+            audioBufferSourceNode = audioContext.createBufferSource();
+            audioBufferSourceNode.buffer = outputBuffer;
+            audioBufferSourceNode.connect(destinationNode);
+            audioBufferSourceNode.start();
+        };
 
-            // ボタンの状態を変更
-            document.getElementById('startButton').disabled = true;
-            document.getElementById('stopButton').disabled = false;
-        })
-        .catch(err => {
-            console.error('録音の許可が得られませんでした: ', err);
-        });
+        // ソースノードを ScriptProcessorNode に接続
+        sourceNode.connect(scriptNode);
+        scriptNode.connect(destinationNode);
+
+        // ボタンの状態を変更
+        document.getElementById('startButton').disabled = true;
+        document.getElementById('stopButton').disabled = false;
+    } catch (error) {
+        console.error('録音の許可が得られませんでした: ', error);
+    }
 }
 
 function stopLiveAudio() {
@@ -84,12 +88,19 @@ function stopLiveAudio() {
     document.getElementById('startButton').disabled = false;
     document.getElementById('stopButton').disabled = true;
 
-    // ストリームとコンテキストを閉じる
+    // ストリームを停止
     if (microphoneStream) {
         microphoneStream.getTracks().forEach(track => track.stop());
     }
+
+    // コンテキストを閉じる
     if (audioContext) {
         audioContext.close();
+    }
+
+    // 再生中の音声を停止
+    if (audioBufferSourceNode) {
+        audioBufferSourceNode.stop();
     }
 }
 
