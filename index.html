@@ -1,109 +1,66 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NGワードゲーム</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f8f9fa;
-        }
-
-        .game-container {
-            text-align: center;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        h1 {
-            color: #007bff;
-        }
-
-        button {
-            padding: 10px 20px;
-            margin-top: 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マイクから音を再生する</title>
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        font-family: Arial, sans-serif;
+    }
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+</style>
 </head>
 <body>
-    <div class="game-container">
-        <h1>NGワードゲーム</h1>
-        <p>他のプレイヤーのNGワードを当てて、自分のNGワードを隠しましょう。</p>
-        <div id="gameArea">
-            <!-- ここにゲームプレイヤーのNGワード一覧が表示されます -->
-        </div>
-        <button onclick="eliminatePlayer()">脱落者決定</button>
-        <button onclick="declareWinner()">優勝者決定</button>
-    </div>
+<button id="startButton">録音開始</button>
+<button id="stopButton" disabled>録音停止</button>
+<audio id="audioPlayer" controls></audio>
 
-    <script>
-        const ngWords = [
-            '後頭部', 'サウナ', 'きわどい', '占い', 'ピーマン', '体操', 'タートル', '校長', 'かんばん', 'カサカサ', 
-            'アーモンド', 'モデル', '悪くない', '〜しちゃお', 'かけない', '愛してる', 'ビール', 'あさって', 'わかんない', 
-            'おでん', 'クーポン', '電源', '幽霊', '100％', 'クオリティー'
-        ];
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let audioChunks = [];
+    let mediaRecorder;
 
-        let players = ['プレイヤー1', 'プレイヤー2', 'プレイヤー3']; // プレイヤーの一覧
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
 
-        // NGワードをランダムに割り当てる
-        function assignNGWords() {
-            players.forEach(player => {
-                const randomIndex = Math.floor(Math.random() * ngWords.length);
-                const assignedWord = ngWords[randomIndex];
-                player.ngWord = assignedWord;
-                ngWords.splice(randomIndex, 1); // 使用したNGワードを削除
-            });
-            displayPlayers();
-        }
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
 
-        // プレイヤーのNGワードを表示する
-        function displayPlayers() {
-            const gameArea = document.getElementById('gameArea');
-            gameArea.innerHTML = '';
-            players.forEach(player => {
-                const playerDiv = document.createElement('div');
-                playerDiv.textContent = `${player}: ***`;
-                gameArea.appendChild(playerDiv);
-            });
-        }
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                document.getElementById('audioPlayer').src = audioUrl;
+            };
+        })
+        .catch(err => {
+            console.error('録音の許可が得られませんでした: ', err);
+        });
 
-        // プレイヤーを脱落させる
-        function eliminatePlayer() {
-            const eliminatedIndex = Math.floor(Math.random() * players.length);
-            const eliminatedPlayer = players[eliminatedIndex];
-            players.splice(eliminatedIndex, 1); // プレイヤーを削除
-            displayPlayers();
-            alert(`${eliminatedPlayer} が脱落しました！`);
-        }
+    document.getElementById('startButton').addEventListener('click', () => {
+        mediaRecorder.start();
+        document.getElementById('startButton').disabled = true;
+        document.getElementById('stopButton').disabled = false;
+    });
 
-        // 優勝者を決定する
-        function declareWinner() {
-            if (players.length === 1) {
-                alert(`${players[0]} がNGワードゲームの勝者です！`);
-            } else {
-                alert('ゲーム続行中です。');
-            }
-        }
-
-        // 初期化
-        assignNGWords();
-    </script>
+    document.getElementById('stopButton').addEventListener('click', () => {
+        mediaRecorder.stop();
+        document.getElementById('startButton').disabled = false;
+        document.getElementById('stopButton').disabled = true;
+        audioChunks = [];
+    });
+});
+</script>
 </body>
 </html>
