@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>マイクから音を再生する</title>
+<title>マイクから音をリアルタイム再生する</title>
 <style>
     body {
         display: flex;
@@ -21,32 +21,56 @@
 </style>
 </head>
 <body>
-<button id="startButton">録音開始</button>
-<button id="stopButton" disabled>録音停止</button>
-<audio id="audioPlayer" controls></audio>
+<button id="startButton">音声を開始</button>
+<button id="stopButton" disabled>音声を停止</button>
+<br>
+<div id="liveAudio"></div>
 
 <script>
-let audioChunks = [];
-let mediaRecorder;
-let isRecording = false;
+let audioContext;
+let microphoneStream;
+let scriptNode;
 
-function startRecording() {
+function startLiveAudio() {
+    // Web Audio API の AudioContext を生成
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    // マイクから音声を取得するための getUserMedia を使ってストリームを取得
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
-            mediaRecorder = new MediaRecorder(stream);
+            microphoneStream = stream;
 
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
+            // ストリームから音声データを取得するためのソースノードを作成
+            const sourceNode = audioContext.createMediaStreamSource(stream);
+
+            // 出力先の destination ノードを作成
+            const destinationNode = audioContext.destination;
+
+            // ScriptProcessorNode を作成して音声処理を行う
+            scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
+
+            // ScriptProcessorNode で音声データを処理する処理を設定
+            scriptNode.onaudioprocess = event => {
+                const inputBuffer = event.inputBuffer;
+                const inputData = inputBuffer.getChannelData(0); // 左チャンネルのデータのみ使用
+
+                // データを再生するために AudioBuffer を作成
+                const outputBuffer = audioContext.createBuffer(1, inputBuffer.length, audioContext.sampleRate);
+                const outputData = outputBuffer.getChannelData(0);
+                outputData.set(inputData);
+
+                // 出力先にデータを送る
+                const audioBufferSourceNode = audioContext.createBufferSource();
+                audioBufferSourceNode.buffer = outputBuffer;
+                audioBufferSourceNode.connect(destinationNode);
+                audioBufferSourceNode.start();
             };
 
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                const audioUrl = URL.createObjectURL(audioBlob);
-                document.getElementById('audioPlayer').src = audioUrl;
-            };
+            // ソースノードを ScriptProcessorNode に接続
+            sourceNode.connect(scriptNode);
+            scriptNode.connect(destinationNode);
 
-            mediaRecorder.start();
-            isRecording = true;
+            // ボタンの状態を変更
             document.getElementById('startButton').disabled = true;
             document.getElementById('stopButton').disabled = false;
         })
@@ -55,34 +79,24 @@ function startRecording() {
         });
 }
 
-function stopRecording() {
-    if (isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        document.getElementById('startButton').disabled = false;
-        document.getElementById('stopButton').disabled = true;
-        audioChunks = [];
+function stopLiveAudio() {
+    // ボタンの状態を変更
+    document.getElementById('startButton').disabled = false;
+    document.getElementById('stopButton').disabled = true;
+
+    // ストリームとコンテキストを閉じる
+    if (microphoneStream) {
+        microphoneStream.getTracks().forEach(track => track.stop());
+    }
+    if (audioContext) {
+        audioContext.close();
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('startButton').addEventListener('click', startRecording);
-    document.getElementById('stopButton').addEventListener('click', stopRecording);
-
-    // ページが非アクティブになった時にも録音を続けるためのイベントリスナー
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden' && isRecording) {
-            // ページが非アクティブになった時に録音を続ける
-            document.title = "録音中...";
-        } else {
-            // ページが再度アクティブになった時にタイトルを元に戻す
-            document.title = "マイクから音を再生する";
-        }
-    });
+    document.getElementById('startButton').addEventListener('click', startLiveAudio);
+    document.getElementById('stopButton').addEventListener('click', stopLiveAudio);
 });
-
-// ページがアンロードされた時に録音を停止する
-window.addEventListener('beforeunload', stopRecording);
 </script>
 </body>
 </html>
