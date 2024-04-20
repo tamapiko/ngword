@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>マイクから音をリアルタイム再生する</title>
+<title>Background Audio Player</title>
+<link rel="manifest" href="/manifest.json">
+
 <style>
     body {
         display: flex;
@@ -12,6 +14,7 @@
         height: 100vh;
         margin: 0;
         font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
     }
     button {
         padding: 10px 20px;
@@ -21,98 +24,31 @@
 </style>
 </head>
 <body>
-<button id="startButton">音声を開始</button>
-<button id="stopButton" disabled>音声を停止</button>
-<br>
-<div id="liveAudio"></div>
+<h1>Background Audio Player</h1>
+<button id="playButton">Play</button>
+<button id="pauseButton">Pause</button>
 
 <script>
-let audioContext;
-let microphoneStream;
-let scriptNode;
-let audioBufferSourceNode;
-
-async function startLiveAudio() {
-    try {
-        // Web Audio API の AudioContext を生成
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-        // マイクから音声を取得するための getUserMedia を使ってストリームを取得
-        microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        // ストリームから音声データを取得するためのソースノードを作成
-        const sourceNode = audioContext.createMediaStreamSource(microphoneStream);
-
-        // 出力先の destination ノードを作成
-        const destinationNode = audioContext.destination;
-
-        // ScriptProcessorNode を作成して音声処理を行う
-        scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
-
-        // ScriptProcessorNode で音声データを処理する処理を設定
-        scriptNode.onaudioprocess = event => {
-            const inputBuffer = event.inputBuffer;
-            const inputData = inputBuffer.getChannelData(0); // 左チャンネルのデータのみ使用
-
-            // データを再生するために AudioBuffer を作成
-            const outputBuffer = audioContext.createBuffer(1, inputBuffer.length, audioContext.sampleRate);
-            const outputData = outputBuffer.getChannelData(0);
-            outputData.set(inputData);
-
-            // 以前の再生があれば停止
-            if (audioBufferSourceNode) {
-                audioBufferSourceNode.stop();
-            }
-
-            // 出力先にデータを送る
-            audioBufferSourceNode = audioContext.createBufferSource();
-            audioBufferSourceNode.buffer = outputBuffer;
-            audioBufferSourceNode.connect(destinationNode);
-            audioBufferSourceNode.start();
-        };
-
-        // ソースノードを ScriptProcessorNode に接続
-        sourceNode.connect(scriptNode);
-        scriptNode.connect(destinationNode);
-
-        // ボタンの状態を変更
-        document.getElementById('startButton').disabled = true;
-        document.getElementById('stopButton').disabled = false;
-    } catch (error) {
-        console.error('録音の許可が得られませんでした: ', error);
-    }
-}
-
-function stopLiveAudio() {
-    // ボタンの状態を変更
-    document.getElementById('startButton').disabled = false;
-    document.getElementById('stopButton').disabled = true;
-
-    // ストリームを停止
-    if (microphoneStream) {
-        microphoneStream.getTracks().forEach(track => track.stop());
-    }
-
-    // コンテキストを閉じる
-    if (audioContext) {
-        audioContext.close();
-    }
-
-    // 再生中の音声を停止
-    if (audioBufferSourceNode) {
-        audioBufferSourceNode.stop();
-    }
+// Service Worker の登録
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+    .then(registration => {
+        console.log('Service Worker registered with scope:', registration.scope);
+    })
+    .catch(error => {
+        console.error('Service Worker registration failed:', error);
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('startButton').addEventListener('click', startLiveAudio);
-    document.getElementById('stopButton').addEventListener('click', stopLiveAudio);
+    const audio = new Audio('your_audio_file.mp3'); // 再生する音声ファイルのパスを指定
 
-    // ウィンドウが非アクティブになった時に停止する
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            stopLiveAudio();
-        }
+    document.getElementById('playButton').addEventListener('click', () => {
+        audio.play();
+    });
+
+    document.getElementById('pauseButton').addEventListener('click', () => {
+        audio.pause();
     });
 });
 </script>
