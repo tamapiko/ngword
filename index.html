@@ -107,6 +107,13 @@ function stopLiveAudio() {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('startButton').addEventListener('click', startLiveAudio);
     document.getElementById('stopButton').addEventListener('click', stopLiveAudio);
+
+    // ウィンドウが非アクティブになった時に停止する
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            stopLiveAudio();
+        }
+    });
 });
 </script>
 </body>
