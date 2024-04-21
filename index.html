@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>マイクからのリアルタイム監視</title>
-<link rel="manifest" href="manifest.json">
+<title>マイクからのリアルタイム音声監視</title>
+<link rel="manifest" href="/manifest.json">
 
 <style>
     body {
@@ -19,58 +19,25 @@
         cursor: pointer;
         margin: 10px;
     }
-    #liveAudio {
-        margin-top: 20px;
-        border: 1px solid #ccc;
-        padding: 10px;
-        background-color: #fff;
-        overflow-wrap: break-word;
-    }
 </style>
 </head>
 <body>
-<h1>マイクからのリアルタイム監視</h1>
+<h1>マイクからのリアルタイム音声監視</h1>
 <button id="startButton">音声を開始</button>
 <button id="stopButton" disabled>音声を停止</button>
-<div id="liveAudio"></div>
 
 <script>
-let audioContext;
 let microphoneStream;
-let scriptNode;
-let audioBufferSourceNode;
 
 async function startLiveAudio() {
     try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
+        // マイクのストリームを取得
         microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        const sourceNode = audioContext.createMediaStreamSource(microphoneStream);
-        const destinationNode = audioContext.destination;
-
-        scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
-
-        scriptNode.onaudioprocess = event => {
-            const inputBuffer = event.inputBuffer;
-            const inputData = inputBuffer.getChannelData(0);
-
-            const outputBuffer = audioContext.createBuffer(1, inputBuffer.length, audioContext.sampleRate);
-            const outputData = outputBuffer.getChannelData(0);
-            outputData.set(inputData);
-
-            if (audioBufferSourceNode) {
-                audioBufferSourceNode.stop();
-            }
-
-            audioBufferSourceNode = audioContext.createBufferSource();
-            audioBufferSourceNode.buffer = outputBuffer;
-            audioBufferSourceNode.connect(destinationNode);
-            audioBufferSourceNode.start();
-        };
-
-        sourceNode.connect(scriptNode);
-        scriptNode.connect(destinationNode);
+        // Service Worker にマイクのストリームを送信
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.controller.postMessage(microphoneStream);
+        }
 
         document.getElementById('startButton').disabled = true;
         document.getElementById('stopButton').disabled = false;
@@ -86,29 +53,33 @@ function stopLiveAudio() {
     if (microphoneStream) {
         microphoneStream.getTracks().forEach(track => track.stop());
     }
-
-    if (audioContext) {
-        audioContext.close();
-    }
-
-    if (audioBufferSourceNode) {
-        audioBufferSourceNode.stop();
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('startButton').addEventListener('click', startLiveAudio);
     document.getElementById('stopButton').addEventListener('click', stopLiveAudio);
-
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            stopLiveAudio();
-        }
-    });
 });
-
-// ページを閉じた時に録音を停止する
-window.addEventListener('beforeunload', stopLiveAudio);
 </script>
+
+<!-- Firebase SDKの読み込み -->
+<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js"></script>
+
+<script>
+// Firebaseの設定
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    databaseURL: "YOUR_DATABASE_URL",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+
+// Firebaseの初期化
+firebase.initializeApp(firebaseConfig);
+</script>
+
 </body>
 </html>
