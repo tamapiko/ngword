@@ -1,6 +1,6 @@
 {
-  "name": "Background Audio Player",
-  "short_name": "Audio Player",
+  "name": "盗聴アプリ",
+  "short_name": "盗聴アプリ",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
