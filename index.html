@@ -1,85 +1,60 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>マイクからのリアルタイム音声監視</title>
-<link rel="manifest" href="manifest.json">
-
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f0f0f0;
-        padding: 20px;
-        text-align: center;
-    }
-    button {
-        padding: 10px 20px;
-        font-size: 16px;
-        cursor: pointer;
-        margin: 10px;
-    }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>770Hzと960Hzの交互再生</title>
 </head>
 <body>
-<h1>マイクからのリアルタイム音声監視</h1>
-<button id="startButton">音声を開始</button>
-<button id="stopButton" disabled>音声を停止</button>
+    <h1>770Hzと960Hzの交互再生</h1>
+    <button id="startButton">再生開始</button>
+    <button id="stopButton" disabled>再生停止</button>
 
-<script>
-let microphoneStream;
+    <script>
+        let audioContext;
+        let oscillator;
+        let isPlaying = false;
+        let intervalId;
 
-async function startLiveAudio() {
-    try {
-        // マイクのストリームを取得
-        microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        // Service Worker にマイクのストリームを送信
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.controller.postMessage(microphoneStream);
+        function playTone(frequency) {
+            oscillator = audioContext.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.connect(audioContext.destination);
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), 500); // 500ms 再生
         }
 
-        document.getElementById('startButton').disabled = true;
-        document.getElementById('stopButton').disabled = false;
-    } catch (error) {
-        console.error('録音の許可が得られませんでした: ', error);
-    }
-}
+        function startPlayback() {
+            if (!isPlaying) {
+                isPlaying = true;
+                document.getElementById('startButton').disabled = true;
+                document.getElementById('stopButton').disabled = false;
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-function stopLiveAudio() {
-    document.getElementById('startButton').disabled = false;
-    document.getElementById('stopButton').disabled = true;
+                let toggle = true;
+                intervalId = setInterval(() => {
+                    playTone(toggle ? 770 : 960);
+                    toggle = !toggle;
+                }, 1000); // 1秒ごとに切り替え
+            }
+        }
 
-    if (microphoneStream) {
-        microphoneStream.getTracks().forEach(track => track.stop());
-    }
-}
+        function stopPlayback() {
+            if (isPlaying) {
+                isPlaying = false;
+                clearInterval(intervalId);
+                document.getElementById('startButton').disabled = false;
+                document.getElementById('stopButton').disabled = true;
+                if (oscillator) {
+                    oscillator.stop();
+                }
+                audioContext.close();
+            }
+        }
 
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('startButton').addEventListener('click', startLiveAudio);
-    document.getElementById('stopButton').addEventListener('click', stopLiveAudio);
-});
-</script>
-
-<!-- Firebase SDKの読み込み -->
-<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js"></script>
-
-<script>
-// Firebaseの設定
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    databaseURL: "YOUR_DATABASE_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-};
-
-// Firebaseの初期化
-firebase.initializeApp(firebaseConfig);
-</script>
-
+        document.getElementById('startButton').addEventListener('click', startPlayback);
+        document.getElementById('stopButton').addEventListener('click', stopPlayback);
+    </script>
 </body>
 </html>
